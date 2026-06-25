@@ -5,14 +5,13 @@ import { createClient } from "@/lib/supabase/client";
 import { formatCurrency } from "@/lib/utils";
 import { Staff } from "@/types";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, UserCheck, UserX, Pencil, Users } from "lucide-react";
+import { Plus, Search, UserCheck, UserX, Pencil, Users, KeyRound } from "lucide-react";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -20,10 +19,9 @@ import { z } from "zod";
 import type { Resolver } from "react-hook-form";
 
 const staffSchema = z.object({
-  name: z.string().min(2),
-  email: z.string().email(),
+  name: z.string().min(2, "Name required"),
   phone: z.string().optional(),
-  position: z.string().min(1),
+  position: z.string().min(1, "Position required"),
   basic_salary: z.coerce.number().min(0),
 });
 type StaffForm = z.infer<typeof staffSchema>;
@@ -36,6 +34,8 @@ export default function StaffPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Staff | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loginUsername, setLoginUsername] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<StaffForm>({
     resolver: zodResolver(staffSchema) as Resolver<StaffForm>,
@@ -53,25 +53,93 @@ export default function StaffPage() {
 
   function openAdd() {
     setEditing(null);
-    reset({ name: "", email: "", phone: "", position: "Sales Staff", basic_salary: 0 });
+    reset({ name: "", phone: "", position: "Sales Staff", basic_salary: 0 });
+    setLoginUsername("");
+    setLoginPassword("");
     setDialogOpen(true);
   }
 
   function openEdit(s: Staff) {
     setEditing(s);
-    reset({ name: s.name, email: s.email, phone: s.phone ?? "", position: s.position, basic_salary: s.basic_salary });
+    reset({ name: s.name, phone: s.phone ?? "", position: s.position, basic_salary: s.basic_salary });
     setDialogOpen(true);
   }
 
   async function onSubmit(data: StaffForm) {
     setSaving(true);
-    if (editing) {
+
+    if (!editing) {
+      // Validate login credentials
+      const uname = loginUsername.trim().toLowerCase();
+      if (!uname || uname.length < 2) {
+        toast.error("Username must be at least 2 characters");
+        setSaving(false);
+        return;
+      }
+      if (!/^[a-z0-9_]+$/.test(uname)) {
+        toast.error("Username: only lowercase letters, numbers, underscore");
+        setSaving(false);
+        return;
+      }
+      if (!loginPassword || loginPassword.length < 6) {
+        toast.error("Password must be at least 6 characters");
+        setSaving(false);
+        return;
+      }
+
+      const authEmail = `${uname}@retailpro.store`;
+
+      // Preserve admin session — signUp may replace it if auto-confirm is on
+      const { data: { session: adminSession } } = await supabase.auth.getSession();
+
+      const { data: authData, error: signUpErr } = await supabase.auth.signUp({
+        email: authEmail,
+        password: loginPassword,
+      });
+
+      // Always restore admin session immediately after
+      if (adminSession) {
+        await supabase.auth.setSession({
+          access_token: adminSession.access_token,
+          refresh_token: adminSession.refresh_token,
+        });
+      }
+
+      if (signUpErr) {
+        toast.error(signUpErr.message);
+        setSaving(false);
+        return;
+      }
+
+      const userId = authData.user?.id;
+      const confirmed = !!authData.user?.email_confirmed_at;
+
+      const { error: staffErr } = await supabase.from("staff").insert({
+        ...data,
+        email: authEmail,
+        user_id: userId ?? null,
+      });
+
+      if (staffErr) { toast.error(staffErr.message); setSaving(false); return; }
+
+      if (userId) {
+        await supabase.from("user_roles").insert({ user_id: userId, role: "staff" });
+      }
+
+      if (!confirmed) {
+        toast.success(`${data.name} added!`);
+        toast.info(
+          `Run in Supabase SQL Editor to activate: UPDATE auth.users SET email_confirmed_at = NOW() WHERE email = '${authEmail}';`,
+          { duration: 15000, description: "Copy and paste in Supabase > SQL Editor" }
+        );
+      } else {
+        toast.success(`${data.name} added! Login: ${uname} / ${loginPassword}`);
+      }
+    } else {
       const { error } = await supabase.from("staff").update(data).eq("id", editing.id);
       if (error) { toast.error(error.message); } else { toast.success("Staff updated"); }
-    } else {
-      const { error } = await supabase.from("staff").insert(data);
-      if (error) { toast.error(error.message); } else { toast.success("Staff added"); }
     }
+
     setSaving(false);
     setDialogOpen(false);
     loadStaff();
@@ -86,7 +154,7 @@ export default function StaffPage() {
 
   const filtered = staff.filter((s) =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.email.toLowerCase().includes(search.toLowerCase())
+    (s.email ?? "").toLowerCase().includes(search.toLowerCase())
   );
 
   return (
@@ -101,22 +169,51 @@ export default function StaffPage() {
           <Plus className="h-4 w-4" />
           <span className="hidden sm:inline">Add Staff</span>
         </Button>
+
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>{editing ? "Edit Staff" : "Add New Staff"}</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
+
+              {/* Login credentials — only when adding */}
+              {!editing && (
+                <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-3">
+                  <p className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground">
+                    <KeyRound className="h-3.5 w-3.5" />
+                    Login Credentials
+                  </p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Username</Label>
+                      <Input
+                        value={loginUsername}
+                        onChange={(e) => setLoginUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                        placeholder="ahmed"
+                      />
+                      <p className="text-[10px] text-muted-foreground">
+                        Login as: <span className="font-mono">{loginUsername || "username"}</span>
+                      </p>
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Password</Label>
+                      <Input
+                        type="password"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="Min 6 characters"
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 space-y-1.5">
                   <Label htmlFor="name">Full Name</Label>
                   <Input id="name" {...register("name")} placeholder="Ahmed Al-Rashid" />
                   {errors.name && <p className="text-xs text-destructive">{errors.name.message}</p>}
-                </div>
-                <div className="col-span-2 space-y-1.5">
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" {...register("email")} placeholder="ahmed@store.com" />
-                  {errors.email && <p className="text-xs text-destructive">{errors.email.message}</p>}
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="phone">Phone</Label>
@@ -125,6 +222,7 @@ export default function StaffPage() {
                 <div className="space-y-1.5">
                   <Label htmlFor="position">Position</Label>
                   <Input id="position" {...register("position")} placeholder="Sales Staff" />
+                  {errors.position && <p className="text-xs text-destructive">{errors.position.message}</p>}
                 </div>
                 <div className="col-span-2 space-y-1.5">
                   <Label htmlFor="basic_salary">Basic Salary (QAR)</Label>
@@ -132,10 +230,11 @@ export default function StaffPage() {
                   {errors.basic_salary && <p className="text-xs text-destructive">{errors.basic_salary.message}</p>}
                 </div>
               </div>
+
               <div className="flex gap-2 pt-2">
                 <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="flex-1">Cancel</Button>
                 <Button type="submit" disabled={saving} className="flex-1">
-                  {saving ? "Saving..." : editing ? "Update" : "Add Staff"}
+                  {saving ? (editing ? "Saving..." : "Creating...") : editing ? "Update Staff" : "Add Staff"}
                 </Button>
               </div>
             </form>
@@ -196,7 +295,11 @@ export default function StaffPage() {
                     {s.is_active ? "Active" : "Inactive"}
                   </Badge>
                 </div>
-                <p className="text-xs text-muted-foreground truncate mb-3">{s.email}</p>
+                {s.email && (
+                  <p className="text-xs text-muted-foreground truncate mb-3 font-mono">
+                    @{s.email.replace("@retailpro.store", "")}
+                  </p>
+                )}
                 <div className="flex items-center justify-between pt-2 border-t border-border">
                   <span className="text-sm font-semibold text-primary">{formatCurrency(s.basic_salary)}/mo</span>
                   <div className="flex gap-1">
