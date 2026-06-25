@@ -35,7 +35,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${plusJakarta.variable} dark h-full antialiased`}>
+    <html lang="en" className={`${plusJakarta.variable} h-full antialiased`}>
       <head>
         <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
       </head>
