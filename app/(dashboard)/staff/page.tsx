@@ -90,37 +90,26 @@ export default function StaffPage() {
 
       const authEmail = `${uname}@retailpro.store`;
 
-      // Preserve admin session — signUp may replace it if auto-confirm is on
-      const { data: { session: adminSession } } = await supabase.auth.getSession();
-
-      const { data: authData, error: signUpErr } = await supabase.auth.signUp({
-        email: authEmail,
-        password: loginPassword,
+      // Call edge function — bypasses all signup restrictions
+      const { data: fnData, error: fnErr } = await supabase.functions.invoke("create-staff-user", {
+        body: { username: uname, password: loginPassword },
       });
 
-      // Always restore admin session immediately after
-      if (adminSession) {
-        await supabase.auth.setSession({
-          access_token: adminSession.access_token,
-          refresh_token: adminSession.refresh_token,
-        });
-      }
-
-      if (signUpErr) {
-        if (signUpErr.message.toLowerCase().includes("rate limit") || signUpErr.status === 429) {
-          toast.error("Supabase email rate limit hit", {
-            description: 'Disable "Confirm email" in Supabase → Authentication → Providers → Email, then retry.',
+      if (fnErr || fnData?.error) {
+        const msg = fnData?.error ?? fnErr?.message ?? "Unknown error";
+        if (msg.includes("not deployed") || msg.includes("404") || msg.includes("Failed to send")) {
+          toast.error("Edge function not set up yet", {
+            description: "Deploy the 'create-staff-user' edge function in Supabase dashboard first.",
             duration: 12000,
           });
         } else {
-          toast.error(signUpErr.message);
+          toast.error(msg);
         }
         setSaving(false);
         return;
       }
 
-      const userId = authData.user?.id;
-      const confirmed = !!authData.user?.email_confirmed_at;
+      const userId: string | undefined = fnData?.user_id;
 
       const { error: staffErr } = await supabase.from("staff").insert({
         ...data,
@@ -134,21 +123,7 @@ export default function StaffPage() {
         await supabase.from("user_roles").insert({ user_id: userId, role: "staff" });
       }
 
-      if (!confirmed) {
-        toast.success(`${data.name} added! Activating login...`);
-        // Copy confirmation SQL to clipboard for easy paste into Supabase SQL editor
-        const sql = `UPDATE auth.users SET email_confirmed_at = NOW() WHERE email = '${authEmail}';`;
-        navigator.clipboard?.writeText(sql).catch(() => {});
-        toast.warning(
-          "Email confirmation required",
-          {
-            duration: 20000,
-            description: `SQL copied to clipboard — paste in Supabase SQL Editor to activate ${uname}'s login.`,
-          }
-        );
-      } else {
-        toast.success(`${data.name} added! Login: ${uname} / ${loginPassword}`);
-      }
+      toast.success(`${data.name} added! Login: ${uname} / ${loginPassword}`);
     } else {
       const { error } = await supabase.from("staff").update(data).eq("id", editing.id);
       if (error) { toast.error(error.message); } else { toast.success("Staff updated"); }
