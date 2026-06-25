@@ -107,7 +107,14 @@ export default function StaffPage() {
       }
 
       if (signUpErr) {
-        toast.error(signUpErr.message);
+        if (signUpErr.message.toLowerCase().includes("rate limit") || signUpErr.status === 429) {
+          toast.error("Supabase email rate limit hit", {
+            description: 'Disable "Confirm email" in Supabase → Authentication → Providers → Email, then retry.',
+            duration: 12000,
+          });
+        } else {
+          toast.error(signUpErr.message);
+        }
         setSaving(false);
         return;
       }
