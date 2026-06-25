@@ -11,7 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Settings, Store, Percent, Plus, Trash2, Save } from "lucide-react";
+import { Settings, Store, Percent, Plus, Trash2, Save, KeyRound, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 interface StoreSettings {
@@ -52,7 +52,32 @@ export default function SettingsPage() {
     { min_sales: 20001, max_sales: "", rate: 3 },
   ]);
 
+  // Password change
+  const [pwCurrent, setPwCurrent] = useState("");
+  const [pwNew, setPwNew] = useState("");
+  const [pwConfirm, setPwConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [changingPw, setChangingPw] = useState(false);
+
   useEffect(() => { loadData(); }, []);
+
+  async function changePassword() {
+    if (!pwCurrent || !pwNew || !pwConfirm) { toast.error("Fill all password fields"); return; }
+    if (pwNew.length < 6) { toast.error("New password must be at least 6 characters"); return; }
+    if (pwNew !== pwConfirm) { toast.error("New passwords do not match"); return; }
+    setChangingPw(true);
+    // Verify current password by re-authenticating
+    const { data: { user } } = await supabase.auth.getUser();
+    const email = user?.email ?? "";
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password: pwCurrent });
+    if (signInErr) { toast.error("Current password is incorrect"); setChangingPw(false); return; }
+    const { error } = await supabase.auth.updateUser({ password: pwNew });
+    if (error) { toast.error(error.message); } else {
+      toast.success("Password changed successfully!");
+      setPwCurrent(""); setPwNew(""); setPwConfirm("");
+    }
+    setChangingPw(false);
+  }
 
   async function loadData() {
     setLoading(true);
@@ -133,6 +158,61 @@ export default function SettingsPage() {
 
   return (
     <div className="space-y-4 max-w-3xl">
+      {/* Change Password */}
+      <Card className="border-border">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-sm font-semibold flex items-center gap-2">
+            <KeyRound className="h-4 w-4 text-primary" />
+            Change Password
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="space-y-1.5">
+              <Label>Current Password</Label>
+              <div className="relative">
+                <Input
+                  type={showPw ? "text" : "password"}
+                  value={pwCurrent}
+                  onChange={(e) => setPwCurrent(e.target.value)}
+                  placeholder="Enter current password"
+                  className="pr-9"
+                />
+                <button
+                  type="button"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                  onClick={() => setShowPw((v) => !v)}
+                >
+                  {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>New Password</Label>
+              <Input
+                type={showPw ? "text" : "password"}
+                value={pwNew}
+                onChange={(e) => setPwNew(e.target.value)}
+                placeholder="Min 6 characters"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Confirm New Password</Label>
+              <Input
+                type={showPw ? "text" : "password"}
+                value={pwConfirm}
+                onChange={(e) => setPwConfirm(e.target.value)}
+                placeholder="Repeat new password"
+              />
+            </div>
+          </div>
+          <Button onClick={changePassword} disabled={changingPw} className="gap-2">
+            <KeyRound className="h-4 w-4" />
+            {changingPw ? "Updating..." : "Update Password"}
+          </Button>
+        </CardContent>
+      </Card>
+
       {/* Store Settings */}
       <Card className="border-border">
         <CardHeader className="pb-3">
