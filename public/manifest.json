@@ -2,69 +2,37 @@
   "name": "RetailPro Qatar",
   "short_name": "RetailPro",
   "description": "Daily sales, stock & staff management for retail stores in Qatar",
-  "start_url": "/dashboard",
+  "start_url": "/retailpro-qatar/dashboard/",
+  "scope": "/retailpro-qatar/",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#ffffff",
+  "theme_color": "#22c55e",
   "orientation": "portrait",
   "categories": ["business", "productivity"],
   "icons": [
     {
-      "src": "/icons/icon-72.svg",
-      "sizes": "72x72",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "/icons/icon-96.svg",
-      "sizes": "96x96",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "/icons/icon-128.svg",
-      "sizes": "128x128",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "/icons/icon-144.svg",
-      "sizes": "144x144",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "/icons/icon-152.svg",
-      "sizes": "152x152",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "/icons/icon-192.svg",
+      "src": "/retailpro-qatar/icons/icon-192.svg",
       "sizes": "192x192",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "/icons/icon-384.svg",
-      "sizes": "384x384",
-      "type": "image/svg+xml"
-    },
-    {
-      "src": "/icons/icon-512.svg",
+      "src": "/retailpro-qatar/icons/icon-512.svg",
       "sizes": "512x512",
       "type": "image/svg+xml",
       "purpose": "any maskable"
     }
   ],
-  "screenshots": [],
   "shortcuts": [
     {
       "name": "Daily Sales",
       "short_name": "Sales",
-      "url": "/sales",
-      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+      "url": "/retailpro-qatar/sales/"
     },
     {
       "name": "Dashboard",
       "short_name": "Dashboard",
-      "url": "/dashboard",
-      "icons": [{ "src": "/icons/icon-96.png", "sizes": "96x96" }]
+      "url": "/retailpro-qatar/dashboard/"
     }
   ]
 }
