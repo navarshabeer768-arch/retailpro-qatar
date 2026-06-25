@@ -1,15 +1,16 @@
 import type { NextConfig } from "next";
 
 const isProd = process.env.NODE_ENV === "production";
+const BASE_PATH = isProd ? "/retailpro-qatar" : "";
 
 const nextConfig: NextConfig = {
   output: "export",
   trailingSlash: true,
-  // GitHub Pages serves the app at /retailpro-qatar
-  basePath: isProd ? "/retailpro-qatar" : "",
+  basePath: BASE_PATH,
   assetPrefix: isProd ? "/retailpro-qatar/" : "",
-  images: {
-    unoptimized: true,
+  images: { unoptimized: true },
+  env: {
+    NEXT_PUBLIC_BASE_PATH: BASE_PATH,
   },
 };
 
