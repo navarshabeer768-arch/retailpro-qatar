@@ -61,6 +61,7 @@ export default function StaffPage() {
 
   function openEdit(s: Staff) {
     setEditing(s);
+    setLoginUsername(s.email ? s.email.replace("@retailpro.store", "") : "");
     reset({ name: s.name, phone: s.phone ?? "", position: s.position, basic_salary: s.basic_salary });
     setDialogOpen(true);
   }
@@ -127,10 +128,16 @@ export default function StaffPage() {
       }
 
       if (!confirmed) {
-        toast.success(`${data.name} added!`);
-        toast.info(
-          `Run in Supabase SQL Editor to activate: UPDATE auth.users SET email_confirmed_at = NOW() WHERE email = '${authEmail}';`,
-          { duration: 15000, description: "Copy and paste in Supabase > SQL Editor" }
+        toast.success(`${data.name} added! Activating login...`);
+        // Copy confirmation SQL to clipboard for easy paste into Supabase SQL editor
+        const sql = `UPDATE auth.users SET email_confirmed_at = NOW() WHERE email = '${authEmail}';`;
+        navigator.clipboard?.writeText(sql).catch(() => {});
+        toast.warning(
+          "Email confirmation required",
+          {
+            duration: 20000,
+            description: `SQL copied to clipboard — paste in Supabase SQL Editor to activate ${uname}'s login.`,
+          }
         );
       } else {
         toast.success(`${data.name} added! Login: ${uname} / ${loginPassword}`);
@@ -177,25 +184,27 @@ export default function StaffPage() {
             </DialogHeader>
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 pt-2">
 
-              {/* Login credentials — only when adding */}
-              {!editing && (
-                <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-3">
-                  <p className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground">
-                    <KeyRound className="h-3.5 w-3.5" />
-                    Login Credentials
-                  </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1.5">
-                      <Label>Username</Label>
-                      <Input
-                        value={loginUsername}
-                        onChange={(e) => setLoginUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
-                        placeholder="ahmed"
-                      />
-                      <p className="text-[10px] text-muted-foreground">
-                        Login as: <span className="font-mono">{loginUsername || "username"}</span>
-                      </p>
-                    </div>
+              {/* Login credentials section */}
+              <div className="rounded-xl border border-border bg-muted/40 p-3 space-y-3">
+                <p className="text-xs font-semibold flex items-center gap-1.5 text-muted-foreground">
+                  <KeyRound className="h-3.5 w-3.5" />
+                  Login Credentials
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Username</Label>
+                    <Input
+                      value={loginUsername}
+                      onChange={(e) => !editing && setLoginUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ""))}
+                      placeholder="ahmed"
+                      readOnly={!!editing}
+                      className={editing ? "bg-muted text-muted-foreground cursor-default" : ""}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      {editing ? "Username cannot be changed" : <>Login as: <span className="font-mono">{loginUsername || "username"}</span></>}
+                    </p>
+                  </div>
+                  {!editing && (
                     <div className="space-y-1.5">
                       <Label>Password</Label>
                       <Input
@@ -205,9 +214,9 @@ export default function StaffPage() {
                         placeholder="Min 6 characters"
                       />
                     </div>
-                  </div>
+                  )}
                 </div>
-              )}
+              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="col-span-2 space-y-1.5">
