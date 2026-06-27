@@ -11,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Search, UserCheck, UserX, Pencil, Users, KeyRound } from "lucide-react";
+import { Plus, Search, UserCheck, UserX, Pencil, Users, KeyRound, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -36,6 +36,7 @@ export default function StaffPage() {
   const [saving, setSaving] = useState(false);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
   const { register, handleSubmit, reset, formState: { errors } } = useForm<StaffForm>({
     resolver: zodResolver(staffSchema) as Resolver<StaffForm>,
@@ -56,6 +57,7 @@ export default function StaffPage() {
     reset({ name: "", phone: "", position: "Sales Staff", basic_salary: 0 });
     setLoginUsername("");
     setLoginPassword("");
+    setShowPassword(false);
     setDialogOpen(true);
   }
 
@@ -90,26 +92,24 @@ export default function StaffPage() {
 
       const authEmail = `${uname}@retailpro.store`;
 
-      // Call edge function — bypasses all signup restrictions
-      const { data: fnData, error: fnErr } = await supabase.functions.invoke("create-staff-user", {
-        body: { username: uname, password: loginPassword },
+      // Call SQL function (runs server-side with SECURITY DEFINER — no signup restrictions)
+      const { data: userId, error: rpcErr } = await supabase.rpc("create_staff_auth_user", {
+        p_username: uname,
+        p_password: loginPassword,
       });
 
-      if (fnErr || fnData?.error) {
-        const msg = fnData?.error ?? fnErr?.message ?? "Unknown error";
-        if (msg.includes("not deployed") || msg.includes("404") || msg.includes("Failed to send")) {
-          toast.error("Edge function not set up yet", {
-            description: "Deploy the 'create-staff-user' edge function in Supabase dashboard first.",
+      if (rpcErr) {
+        if (rpcErr.message.includes("function") && rpcErr.message.includes("does not exist")) {
+          toast.error("SQL function not set up yet", {
+            description: "Run the create_staff_auth_user SQL function in Supabase SQL Editor first.",
             duration: 12000,
           });
         } else {
-          toast.error(msg);
+          toast.error(rpcErr.message);
         }
         setSaving(false);
         return;
       }
-
-      const userId: string | undefined = fnData?.user_id;
 
       const { error: staffErr } = await supabase.from("staff").insert({
         ...data,
@@ -189,12 +189,22 @@ export default function StaffPage() {
                   {!editing && (
                     <div className="space-y-1.5">
                       <Label>Password</Label>
-                      <Input
-                        type="password"
-                        value={loginPassword}
-                        onChange={(e) => setLoginPassword(e.target.value)}
-                        placeholder="Min 6 characters"
-                      />
+                      <div className="relative">
+                        <Input
+                          type={showPassword ? "text" : "password"}
+                          value={loginPassword}
+                          onChange={(e) => setLoginPassword(e.target.value)}
+                          placeholder="Min 6 characters"
+                          className="pr-9"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword((v) => !v)}
+                          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                        >
+                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
