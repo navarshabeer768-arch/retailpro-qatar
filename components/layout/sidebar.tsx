@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -21,7 +22,7 @@ import { createClient } from "@/lib/supabase/client";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
-const navItems = [
+const ownerNavItems = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { href: "/staff", label: "Staff", icon: Users },
   { href: "/products", label: "Products", icon: Package },
@@ -33,6 +34,11 @@ const navItems = [
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 
+const staffNavItems = [
+  { href: "/sales", label: "Daily Sales", icon: TrendingUp },
+  { href: "/products", label: "Products", icon: Package },
+];
+
 interface SidebarProps {
   onClose?: () => void;
   mobile?: boolean;
@@ -42,6 +48,21 @@ export function Sidebar({ onClose, mobile }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id)
+        .single()
+        .then(({ data }) => setRole(data?.role ?? "staff"));
+    });
+  }, []);
+
+  const navItems = role === "owner" ? ownerNavItems : staffNavItems;
 
   async function handleSignOut() {
     await supabase.auth.signOut();
