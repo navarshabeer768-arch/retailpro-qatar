@@ -143,10 +143,9 @@ export default function DashboardPage() {
     const { data } = await supabase
       .from("products")
       .select("name,current_stock,low_stock_threshold")
-      .eq("is_active", true)
-      .filter("current_stock", "lte", "low_stock_threshold")
-      .limit(5);
-    setLowStockItems(data ?? []);
+      .eq("is_active", true);
+    const low = (data ?? []).filter((p) => p.current_stock <= p.low_stock_threshold).slice(0, 5);
+    setLowStockItems(low);
   }
 
   async function loadWeekSales() {
